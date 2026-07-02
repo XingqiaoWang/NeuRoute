@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# C++ build
+build/
+*.o
+*.so
+a.out
+
+# Data & artifacts (too large for git)
+*.npy
+*.npz
+*.bin
+*.fbin
+*.ibin
+*.u8bin
+*.pt
+*.pth
+*.faiss
+*.log
+logs/
+runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local configs with machine-specific paths
+cfg.json
