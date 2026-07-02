@@ -1,7 +1,7 @@
 # NeuRoute: Logit-Guided Neural Routing for Billion-Scale Vector Search with Sub-Hour Index Construction
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Paper](https://img.shields.io/badge/Paper-PDF-red.svg)](paper/NeuRoute_VLDB2026.pdf)
+[![Paper](https://img.shields.io/badge/Paper-PDF-red.svg)](paper/NeuRoute_arXiv.pdf)
 
 Official implementation and artifact release for **NeuRoute**, a learned hashing index that turns short binary codes into an effective routing primitive for billion-scale approximate nearest neighbor (ANN) search.
 
@@ -9,7 +9,7 @@ Official implementation and artifact release for **NeuRoute**, a learned hashing
 > Xingqiao Wang, Zi Wang, Xiaowei Xu  
 > University of Arkansas at Little Rock
 
-[Paper](paper/NeuRoute_VLDB2026.pdf) | [Appendix](paper/Appendix.pdf) | [Overleaf source](paper/overleaf/) | [Results](results/)
+[Paper](paper/NeuRoute_arXiv.pdf) | [Appendix](paper/Appendix.pdf) | [Overleaf source](paper/overleaf/) | [Results](results/)
 
 ![Recall-QPS trade-off](results/figures/recall_qps.png)
 
@@ -29,7 +29,7 @@ This release contains the pieces needed to inspect, reproduce, and extend the pa
 - `src/`: Python training, model selection, encoding, CSR index construction, calibration, and dataset-specific entry points.
 - `cpp/`: C++ bucket-local clustering and query-time retrieval pipeline with TorchScript, OpenMP, and vectorized distance kernels.
 - `results/`: measured Recall@10-QPS sweeps for NeuRoute and baselines, build-time CSVs, and publication figures.
-- `paper/`: camera-ready PDFs plus the Overleaf source bundle used for the paper.
+- `paper/`: arXiv/preprint PDF, appendix PDF, and the Overleaf source bundle used for the manuscript.
 - `scripts/`: lightweight plotting helpers for release figures.
 
 > Naming note: `AutoHash` and `SPHash` are historical internal names that remain in some source paths, configs, and paper-source filenames. The paper-facing system name is **NeuRoute**.
@@ -39,7 +39,7 @@ This release contains the pieces needed to inspect, reproduce, and extend the pa
 ```text
 NeuRoute/
 |-- paper/
-|   |-- NeuRoute_VLDB2026.pdf
+|   |-- NeuRoute_arXiv.pdf
 |   |-- Appendix.pdf
 |   `-- overleaf/                         # LaTeX source and paper figures
 |-- src/                                  # Python training and index construction
@@ -190,7 +190,7 @@ python scripts/plot_build_time.py
 @article{wang2026neuroute,
   title   = {NeuRoute: Logit-Guided Neural Routing for Billion-Scale Vector Search with Sub-Hour Index Construction},
   author  = {Wang, Xingqiao and Wang, Zi and Xu, Xiaowei},
-  journal = {Proceedings of the VLDB Endowment},
+  journal = {arXiv preprint},
   year    = {2026}
 }
 ```

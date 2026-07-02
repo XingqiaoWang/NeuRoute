@@ -10,7 +10,7 @@
 \usepackage{amsmath}       % Math equations
 \usepackage{hyperref}      % Clickable references
 \usepackage{adjustbox}     % Resize tables/figures
-\usepackage{xcolor} 
+\usepackage{xcolor}
 \usepackage{balance}% Color for highlighting text
 \usepackage{algorithmicx}
 \usepackage{algorithm}
@@ -22,22 +22,6 @@
 
 \renewcommand{\algorithmicrequire}{\textbf{Input:}}
 \renewcommand{\algorithmicensure}{\textbf{Output:}}
-%% The following content must be adapted for the final version
-% paper-specific
-\newcommand\vldbdoi{XX.XX/XXX.XX}
-\newcommand\vldbpages{XXX-XXX}
-% issue-specific
-\newcommand\vldbvolume{14}
-\newcommand\vldbissue{1}
-\newcommand\vldbyear{2020}
-% should be fine as it is
-\newcommand\vldbauthors{\authors}
-\newcommand\vldbtitle{\shorttitle} 
-% leave empty if no availability url should be set
-\newcommand\vldbavailabilityurl{URL_TO_YOUR_ARTIFACTS}
-% whether page numbers should be shown or not, use 'plain' for review versions, 'empty' for camera ready
-\newcommand\vldbpagestyle{plain} 
-
 \begin{document}
 \title{NeuRoute: Logit-Guided Neural Routing for Billion-Scale Vector Search with Sub-Hour Index Construction}
 
@@ -83,31 +67,10 @@ These results show that logit-guided neural routing can make hashing competitive
 
 \maketitle
 
-%%% do not modify the following VLDB block %%
-%%% VLDB block start %%%
-\pagestyle{\vldbpagestyle}
-\begingroup\small\noindent\raggedright\textbf{PVLDB Reference Format:}\\
-\vldbauthors. \vldbtitle. PVLDB, \vldbvolume(\vldbissue): \vldbpages, \vldbyear.\\
-\href{https://doi.org/\vldbdoi}{doi:\vldbdoi}
+\begingroup\small\noindent\raggedright
+\textbf{Preprint.} This manuscript is prepared for arXiv. Source code and artifacts are available at
+\url{https://github.com/XingqiaoWang/NeuRoute}.
 \endgroup
-\begingroup
-\renewcommand\thefootnote{}\footnote{\noindent
-This work is licensed under the Creative Commons BY-NC-ND 4.0 International License. Visit \url{https://creativecommons.org/licenses/by-nc-nd/4.0/} to view a copy of this license. For any use beyond those covered by this license, obtain permission by emailing \href{mailto:info@vldb.org}{info@vldb.org}. Copyright is held by the owner/author(s). Publication rights licensed to the VLDB Endowment. \\
-\raggedright Proceedings of the VLDB Endowment, Vol. \vldbvolume, No. \vldbissue\ %
-ISSN 2150-8097. \\
-\href{https://doi.org/\vldbdoi}{doi:\vldbdoi} \\
-}\addtocounter{footnote}{-1}\endgroup
-%%% VLDB block end %%%
-
-%%% do not modify the following VLDB block %%
-%%% VLDB block start %%%
-\ifdefempty{\vldbavailabilityurl}{}{
-\addvspace{.3cm}
-\begingroup\small\noindent\raggedright\textbf{PVLDB Artifact Availability:}\\
-The source code, data, and/or other artifacts have been made available at \url{https://github.com/XingqiaoWang/NeuRoute/tree/main}.
-\endgroup
-}
-%%% VLDB block end %%%
 
 
 \section{Introduction}
