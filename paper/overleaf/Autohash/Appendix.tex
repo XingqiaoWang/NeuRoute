@@ -1,0 +1,153 @@
+\documentclass[sigconf,anonymous]{acmart}
+
+% (optional, removes ACM ref block/footer during drafts)
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+\DeclareRobustCommand{\AutoHash}{\textit{AutoHash}}
+
+\begin{document}
+
+\title{Appendix}
+
+% minimal anonymous author
+\author{Anonymous Author(s)}
+\affiliation{
+  \institution{Under Double-Blind Review}
+  \country{}
+}
+
+\maketitle
+
+
+\section{Similarity-Loss Complexity and Memory Footprint}
+
+\label{app:simloss-complexity}
+ 
+\subsection{Scope and Implementation Notes}
+
+The similarity loss is evaluated \emph{within} each mini-batch in both the original embedding space and the learned latent space. A threshold-driven \emph{sparse mask} selects the pairs that contribute to the loss and backpropagation. No global $N_{\text{train}} \times N_{\text{train}}$ pairwise matrix is constructed.
+ 
+\subsection{Time Complexity}
+
+\textbf{Per-batch cost.} For batch size $B$, pairwise similarities are computed via matrix multiplications/inner products, yielding a cost proportional to $B^2$ in practice. The sparse mask further reduces effective work by restricting aggregation and gradient updates to the selected pairs (mask density $\rho \in (0,1]$).
+ 
+\noindent
+
+\textbf{Across batches/epochs.} Total training time scales as \emph{(\#batches) $\times$ (per-batch cost)}. With fixed $B$ and $\rho$, and with latent dimension typically much smaller than the input dimension, the overall contribution of the similarity loss grows \emph{approximately linearly} with the training set size and \emph{linearly} with the input dimension. It does not introduce a quadratic-in-$N_{\text{train}}$ bottleneck.
+ 
+\subsection{Memory Complexity}
+
+Within a batch, the method keeps two $B \times B$ similarity blocks (embedding and latent) and one mask of the same shape, resulting in $O(B^2)$ memory. There is no global all-pairs tensor, so memory does \emph{not} scale quadratically with $N_{\text{train}}$.
+ 
+\subsection{Scalability and Control Knobs}
+
+The mask density is governed by thresholding (and optional gating), trading off stability and compute; in practice, the number of effective pairs is far below $B^2$. Pairwise computations are implemented as batched matrix operations on GPUs, and data parallelism across batches can further increase throughput. Batch size and thresholds are the primary knobs to keep both time and memory within budget.
+ 
+\subsection{Comparison to Clustering/Graph Construction}
+
+Unlike large-scale $k$-means or graph construction—which often incur super-linear growth in $N$ or large constant factors—the similarity-loss component remains \emph{approximately linear} in training size under fixed batch and mask settings. This design keeps end-to-end training and (re)index construction predictable for frequent rebuilds and under distribution shift.
+
+
+\section{Training/Validation Loss Across Datasets}
+\label{app:loss-curves}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{Autohash/appendix_figures/LOSS.png}
+  \caption{\textbf{Magnified loss curves} (y-axis zoomed) for all datasets.
+  Blue = training loss, gold = validation loss. Dashed vertical lines (when
+  present) mark the epoch of best validation loss automatically detected by the
+  logging code.}
+  \label{fig:all-loss}
+\end{figure*}
+
+\paragraph{High-level patterns.}
+All datasets show smooth, monotonic decreases in training loss. Validation loss
+generally tracks training loss early, then settles into a shallow plateau, which
+is where the dashed early-stopping markers tend to fall.
+
+\paragraph{Per-dataset observations.}
+\begin{itemize}
+  \item \textbf{Deep1B \& BigANN.} After the first \(\sim\)10 epochs the losses
+  are already in a low range and continue to drop slowly. The marginal gain past
+  \(\sim\)30–40 epochs is small, suggesting aggressive early stopping (or a
+  faster LR decay) would preserve most of the benefit with shorter training.
+  \item \textbf{GLDv2.} Training loss keeps improving for hundreds of epochs,
+  while validation loss flattens around \(\sim\)0.040–0.041. The best
+  validation epoch occurs late, but the improvements are tiny; consider stopping
+  at the dashed marker or slightly before to save compute.
+  \item \textbf{DBLP.} Training loss quickly drops and then stays nearly flat,
+  while validation loss hovers around \(\sim\)0.055 with small oscillations. The
+  persistent train–val gap suggests limited generalization headroom without
+  architectural or regularization changes (e.g., stronger augmentation, label
+  smoothing, or weight decay).
+  \item \textbf{Out-of-Domain.} Early epochs reduce both losses quickly, then
+  validation exhibits small oscillations around a shallow plateau—a typical
+  signature of distribution shift. Early stopping at the first plateau avoids
+  over-fitting the source domain.
+  \item \textbf{Incremental.} Validation improves until \(\sim\)150 epochs and
+  then plateaus, while training continues to decline slightly—consistent with
+  mild over-fitting. The dashed marker is a good stopping point for each
+  increment.
+\end{itemize}
+
+\paragraph{Takeaways.}
+(1) Use early stopping at the first stable validation plateau; the dashed
+markers in Fig.~\ref{fig:all-loss} are good defaults.  
+(2) Past the plateau, LR decay may still reduce training loss but brings little
+validation gain.  
+(3) Where the train–val gap persists (DBLP, OOD, Incremental), modest
+regularization/augmentation or domain-aware sampling can help more than extra
+epochs.
+
+
+\section{Storage Footprint}
+\label{app:storage}
+ 
+This section summarizes the storage cost of the AutoHash model and the resulting index artifacts across our datasets. Sizes are on-disk footprints measured after training and index construction (CPU retrieval), using default serialization without extra compression.
+ 
+\paragraph{Model size.}
+Encoder--decoder checkpoint sizes for several latent/input dimension settings:
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Latent dim & Input dim & Model size \\
+\midrule
+15 & 1024 & 5.4\,MB \\
+17 & 1536 & 7.4\,MB \\
+22 & 96   & 90\,KB \\
+22 & 128  & 178\,KB \\
+\bottomrule
+\end{tabular}
+\end{table}
+ 
+\paragraph{Index/storage footprint.}
+For each dataset we list the raw vector file size (\emph{data}), the built index size (\emph{index}), and the auxiliary \emph{cluster file}.
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Dataset & Data size & Index size & Cluster file \\
+\midrule
+1024D              & 29\,GB  & 29\,GB  & 57\,MB \\
+1536D              & 54\,GB  & 54\,GB  & 72\,MB \\
+BIGANN-1B (96D)    & 477\,GB & 485\,GB & 7.5\,GB \\
+Deep1B (96D)       & 358\,GB & 373\,GB & 7.5\,GB \\
+\bottomrule
+\end{tabular}
+\end{table}
+ 
+\paragraph{What is the cluster file?}
+The \emph{cluster file} is a compact routing metadata store that, for each bucket/partition, records:
+(i) the database vector ID, and
+(ii) the corresponding address (offset/pointer) into the contiguous vector storage.
+This enables fast candidate resolution during retrieval without scanning auxiliary maps.
+ 
+\paragraph{Notes.}
+(1) For 1024D/1536D corpora, the index size is close to the raw data size because we keep original vectors for exact refinement; the cluster file is small (tens of MB).  
+(2) On BIGANN-1B and Deep1B, the index is slightly larger than the raw vectors due to per-bucket bookkeeping and alignment; the cluster file (a few GB) holds the ID$\rightarrow$address directory shared by all queries.  
+(3) The model checkpoint is negligible relative to corpus/index sizes (MB/KB scale) and does not grow with the number of vectors.
+\end{document}

@@ -1,0 +1,396 @@
+\documentclass[sigconf, nonacm]{acmart}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{adjustbox}
+\usepackage{xcolor}
+\usepackage{balance}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+
+\begin{document}
+
+\title{Appendix}
+\maketitle
+
+\section{NeuRoute model configurations}
+\label{app:encoder_config}
+
+Table~\ref{tab:NeuRoute-arch} summarizes the encoder instantiations used in our evaluation.
+Across all settings, NeuRoute uses a lightweight MLP encoder that progressively compresses the input embedding from $E_{\mathrm{dim}}$ to a compact latent logit vector of dimension $L_{\mathrm{dim}}$.
+Each hidden layer follows Linear$\rightarrow$BatchNorm$\rightarrow$ReLU, while the final encoder layer is linear to preserve the latent logits used for binarization and routing.
+We also report the dataset-specific $\tau_{\mathrm{emb}}$ used for top-quantile pair selection; for a given dataset family (e.g., BigANN), we use the same $\tau_{\mathrm{emb}}$ across scales.
+
+\begin{table}[t]
+  \caption{\textbf{NeuRoute model design.} Hidden layers use Linear $\rightarrow$ BatchNorm $\rightarrow$ ReLU; the final encoder layer is linear (no BatchNorm or activation).}
+  \label{tab:NeuRoute-arch}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.05}
+  \begin{adjustbox}{max width=\linewidth}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    \textbf{Dataset} & \textbf{$E_{\mathrm{dim}}$} & \textbf{$L_{\mathrm{dim}}$} & \textbf{$\gamma$} & \textbf{$\tau_{\mathrm{emb}}$} & \textbf{Encoder widths} \\
+    \midrule
+    \texttt{BigANN-100M}  & 128  & 20 & 0.6 & 1.20 & $128, 96, 64, 20$ \\
+    \texttt{BigANN-1B}    & 128  & 22 & 0.6 & 1.20 & $128, 96, 64, 22$ \\
+    \texttt{Deep1B-100M}  & 96   & 20 & 0.6 & 0.85 & $96, 64, 32, 20$ \\
+    \texttt{Deep1B-1B}    & 96   & 22 & 0.6 & 0.85 & $96, 64, 32, 22$ \\
+    \texttt{GLDv2}        & 1536 & 16 & 0.6 & 0.90 & $1536, 512, 256, 128, 64, 16$ \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}
+
+\section{Training stability and convergence}
+\label{app:train_val_loss}
+
+Figure~\ref{fig:train_val_loss} reports the training and validation loss curves for NeuRoute across all evaluated datasets under the default training protocol (2M training subset, batch size 4096, 500 epochs).
+Across datasets, the loss decreases rapidly in early epochs and then stabilizes, indicating consistent convergence behavior under a fixed schedule; we use this fixed schedule for all experiments for simplicity and reproducibility.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/train_val_loss.png}
+  \caption{NeuRoute training/validation loss curves across datasets. Each panel shows the total loss over epochs with an inset zooming into the late-epoch regime to highlight convergence.}
+  \label{fig:train_val_loss}
+\end{figure*}
+
+\section{Empirical evidence for logit-guided bucket routing}
+\label{app:logit_routing_evidence}
+
+We focus on \emph{bucket routing/refinement} rather than improving hash codes.
+Given fixed codes and a fixed hash-table layout, we exploit the pre-binarization logit margins to prioritize which buckets to probe under a limited budget.
+Figures~\ref{fig:l1sum-vs-gt}, \ref{fig:q-c-hamming}, and \ref{fig:gt-flip-rank} support this design choice from three angles:
+(i) our bucket score correlates with KNN distance, (ii) useful candidates concentrate at small Hamming distances, and (iii) KNN bit flips are biased toward low-margin (uncertain) bits.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/l1_margin.png}
+  \caption{KNN embedding distance versus the proposed bucket score (\texttt{L1\_sum}). Each point corresponds to a probed bucket; lower scores tend to be associated with closer GT neighbors.}
+  \label{fig:l1sum-vs-gt}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/hist_qc_hamming.png}
+  \caption{Distribution of query--candidate Hamming distances observed during probing. Useful candidates concentrate at small Hamming distances, motivating prioritized multi-bucket enumeration under a fixed budget.}
+  \label{fig:q-c-hamming}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/distribution_flips.png}
+  \caption{Probability that a KNN flips a bit as a function of the bit's margin rank (rank 0 = smallest margin / least confident). GT flips concentrate on low-margin bits, validating margin-ranked bit flipping for bucket routing.}
+  \label{fig:gt-flip-rank}
+\end{figure}
+
+\section{Hashing baselines at 22 bits: diagnostics and pure-hashing reference}
+\label{app:hashing_baselines}
+
+We compare 22-bit codes produced by LSH, ITQ, TBH, and NeuRoute on BigANN (128D), Deep1B (96D), and GLDv2 (1536D).
+All methods use $b{=}22$ bits (3 bytes per vector), yielding $2^{22}{=}4{,}194{,}304$ buckets.
+We focus on two code-level diagnostics that affect any budgeted probing strategy: bucket balance (to control collision-driven candidate explosion) and margin--flip alignment under ground-truth neighbors (to justify margin-guided probing).
+
+\begin{table}[t]
+\centering
+\caption{22-bit hashing baselines (pure hashing, Hamming-only probing). CodeGen reports base code generation time. Best operating point is selected by maximum Recall@10 (ties broken by QPS).}
+\label{tab:hash_baseline_summary}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrrr}
+\toprule
+Dataset & Method & CodeGen (s) & Codes (GiB) & Recall@10 (\%) & QPS \\
+\midrule
+BigANN-100M & LSH & 26.8   & 0.279 & 7.84  & 1296 \\
+BigANN-100M & ITQ & 90.1   & 0.279 & 11.04 & 2169 \\
+BigANN-100M & TBH & 1006.1 & 0.279 & 26.12 & 239 \\
+\midrule
+Deep1B-100M & LSH & 318.2  & 0.279 & 12.37 & 53702 \\
+Deep1B-100M & ITQ & 77.6   & 0.279 & 35.41 & 3309 \\
+Deep1B-100M & TBH & 997.6  & 0.279 & 81.10 & 41 \\
+\midrule
+GLDv2 & LSH & 391.5  & 0.026 & 37.55 & 83 \\
+GLDv2 & ITQ & 88.0   & 0.026 & 57.27 & 111 \\
+GLDv2 & TBH & 128.4  & 0.026 & 74.99 & 19 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:hash-baseline} reports training/encoding time and two bucket-quality metrics: \emph{Nonempty\%} (fraction of buckets with at least one item; higher indicates better utilization) and \emph{MaxBucket\%} (fraction of the database in the largest bucket; lower indicates fewer extreme hotspots).
+We report NeuRoute timing for completeness, but emphasize the structural bucket statistics that govern probe efficiency.
+NeuRoute is \emph{not} treated as a pure hashing baseline in this subsection: we include its 22-bit codes only for diagnostics, while its end-to-end retrieval additionally uses budgeted traversal and centroid-stage filtering in the main paper.
+
+\begin{table}[t]
+\centering
+\caption{Hash-code training/encoding cost and bucket statistics for 22-bit codes.}
+\label{tab:hash-baseline}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.05}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrrr}
+\toprule
+Method & Dataset & Train (s) & Encode (s) & Nonempty\% & MaxBucket\% \\
+\midrule
+LSH    & BigANN-100M  & 0.0    & 26.8   & 14.1  & 0.72 \\
+ITQ    & BigANN-100M  & 15.0   & 90.1   & 52.4  & 0.56 \\
+TBH    & BigANN-100M  & 1577.8 & 1006.1 & 0.64  & 1.18 \\
+NeuRoute & BigANN-100M  & 1176.5 & 63.0   & 59.8  & 0.02 \\
+\midrule
+LSH    & BigANN-1B    & 0.0    & 375.3  & 23.8  & 0.72 \\
+ITQ    & BigANN-1B    & 12.8   & 793.3  & 73.9  & 0.55 \\
+TBH    & BigANN-1B    & 1577.8 & 9975.9 & 1.36  & 0.88 \\
+NeuRoute & BigANN-1B    & 1183.5 & 582.2  & 98.4  & 0.07 \\
+\midrule
+LSH    & Deep1B-100M  & 0.0    & 318.2  & 81.5  & 0.14 \\
+ITQ    & Deep1B-100M  & 14.5   & 77.6   & 66.8  & 0.87 \\
+TBH    & Deep1B-100M  & 1538.1 & 997.6  & 0.018 & 8.83 \\
+NeuRoute & Deep1B-100M  & 1153.1 & 58.40  & 80.85 & 0.05 \\
+\midrule
+LSH    & Deep1B-1B    & 0.0    & 4097.1 & 97.4  & 0.14 \\
+ITQ    & Deep1B-1B    & 12.5   & 628.7  & 89.9  & 0.87 \\
+TBH    & Deep1B-1B    & 1538.1 & 6122.8 & 0.024 & 8.83 \\
+NeuRoute & Deep1B-1B    & 1124.4 & 399.8  & 96.2  & 0.09 \\
+\midrule
+LSH    & GLDv2        & 0.0    & 495.1  & 27.5  & 0.03 \\
+ITQ    & GLDv2        & 59.2   & 88.4   & 16.1  & 1.34 \\
+TBH    & GLDv2        & 2052.1 & 147.6  & 0.75  & 1.46 \\
+NeuRoute & GLDv2        & 2396.4 & 113.8  & 38.5  & 0.12 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{Bucket balance and collision structure.}
+Figure~\ref{fig:bucket_cumulative_1b} visualizes bucket occupancy distributions under 22-bit codes.
+Across datasets, better bucket balance reduces the likelihood that a fixed probing budget is dominated by a small number of collision-heavy buckets.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/fig_bucket_cumulative1B.png}
+  \caption{Bucket occupancy diagnostics for 22-bit codes on BigANN-1B, Deep1B-1B, and GLDv2 (LSH/ITQ/TBH/NeuRoute). Left: cumulative mass contained in the top $X\%$ buckets (sorted by occupancy). Right: top bucket mass by rank (top-1 to top-20).}
+  \label{fig:bucket_cumulative_1b}
+\end{figure*}
+
+\paragraph{Margin--flip alignment under ground-truth neighbors.}
+Beyond bucket balance, margin-guided probing requires that ground-truth bit flips concentrate on low-margin (uncertain) bits.
+Figure~\ref{fig:fliprank_cdf_1b} reports the flip-rank CDF diagnostic; across Deep1B and GLDv2, flips concentrate on low-margin bits, supporting the use of query-side margins as a principled signal for prioritized probing.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/flip.png}
+  \caption{Flip-rank CDF (query-side) for 22-bit codes on BigANN-1B, Deep1B-1B, and GLDv2 (LSH vs.\ NeuRoute). For each query, bits are ranked by query-side margin (rank 0 is the smallest margin), and the CDF accumulates the ranks of bits that flip under XOR with ground-truth neighbors.}
+  \label{fig:fliprank_cdf_1b}
+\end{figure*}
+
+\subsubsection{Pure hashing retrieval summary (22-bit)}
+\label{sec:hash-baseline-summary}
+
+We summarize \emph{pure hashing} baselines that rely on Hamming-only probing (LSH/ITQ/TBH).
+For space, we report the main comparison on GLDv2 (1536D) in Table~\ref{tab:gldv2_hash_vs_NeuRoute}.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{lrrr}
+\toprule
+Method & Recall@10 (\%) & QPS & Cand./q \\
+\midrule
+LSH (22b) & 37.55 & 82.94  & 72 \\
+ITQ (22b) & 57.27 & 111.17 & 6,582 \\
+TBH (22b) & 74.99 & 18.52  & 49,649 \\
+\midrule
+NeuRoute (ours) & 93.86 & 111.40 & 69,709 \\
+\bottomrule
+\end{tabular}
+\caption{GLDv2 (1536D) comparison under the same evaluation harness ($Q{=}10{,}000$). Cand./q is derived from run logs (hashing baselines: $\texttt{init\_scanned\_vecs}/Q$; NeuRoute: $\texttt{refined\_vecs\_phase2}/Q$).}
+\label{tab:gldv2_hash_vs_NeuRoute}
+\end{table}
+
+\section{Centroid-stage budget control}
+\label{app:centroid_budget_control}
+
+This section provides additional details for the centroid-stage gate and the heap-quality-driven early-stop mechanism used in Alg.\ref{alg:alpha_early_stop}.
+
+\subsection{Margin-curve calibration for centroid-stage gating}
+\label{app:margin_curve_calibration}
+
+Figure~\ref{fig:margin_curve} visualizes the dataset-specific calibration of the margin curve $M(\cdot)$ used by the centroid-stage gate $\theta = d_{\min} + M(d_{\min})$.
+For each dataset, we bucket calibration samples by the current best centroid distance $d_{\min}$ (x-axis, ``dbest2'') and estimate the empirical $q95$/$q99$ margin statistics at each knot (dashed curves).
+We then apply a smoothed, monotone ``used'' curve (solid) to make gating stable across knots; the bottom panel reports the number of samples per knot, indicating where the curve is well-supported.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/margin_curve.png}
+  \caption{Margin curve calibration for centroid-stage gating on Deep1B-1B and BigANN-1B. Top: raw (dashed) and final used (solid) $q95$/$q99$ margin knots as a function of $d_{\min}$ (``dbest2''). Bottom: number of calibration samples per knot for each dataset.}
+  \label{fig:margin_curve}
+\end{figure*}
+
+\subsection{Heap-quality-driven early stopping in the centroid stage}
+\label{app:alpha_early_stop}
+
+Algorithm~\ref{alg:alpha_early_stop} details the $\alpha$-driven early-stop criterion used in Alg.\ref{alg:alpha_early_stop}.
+Given the current best centroid distance $d_{\min}$, we compute an acceptance band $\theta = d_{\min} + \alpha(d_{\min})$ and only admit centroids within this band into the bounded top-$K_c$ heap.
+We stop early once the heap is full, a minimum number of bins have been processed, and a minimum number of consecutive batches yield no heap updates.
+
+\begin{algorithm}[t]
+\caption{$\alpha$-driven early stopping in the centroid stage (single query).}
+\label{alg:alpha_early_stop}
+\begin{algorithmic}[1]
+\Require Query representation $q$; binned bucket IDs \texttt{bins\_buckets}; centroid index \texttt{subidx};
+heap capacity $K_c$; calibrated function $\alpha(\cdot)$;
+minimum bins $B_{\min}$; minimum no-gain batches $T_{\min}$; batch cap $B_{\text{cap}}$.
+\State $\texttt{best} \gets +\infty$
+\State $\texttt{consecutive\_no\_gain} \gets 0$
+\State $\texttt{bins\_processed} \gets 0$
+\State Initialize an empty bounded heap $\mathcal{H}$ with capacity $K_c$
+\For{each bin $b$ in \texttt{bins\_buckets}}
+  \State $\mathcal{C} \gets \textsc{ExpandBucketsToCentroids}(\texttt{subidx}, b.\texttt{bucket\_ids})$
+  \While{$\mathcal{C}$ is not empty}
+    \State $\texttt{batch} \gets \textsc{TakeNext}(\mathcal{C}, B_{\text{cap}})$
+    \State $\texttt{d}^2 \gets \textsc{Dist2}(q, \texttt{subidx}[\texttt{batch}])$
+    \State $\texttt{best} \gets \min(\texttt{best}, \min(\texttt{d}^2))$
+    \State $\alpha \gets \alpha(\texttt{best})$ \Comment{$\alpha(\texttt{best}) \ge 0$}
+    \State $\theta \gets \texttt{best} + \alpha$
+    \State $\texttt{updates} \gets 0$
+    \For{each $(\texttt{cid}, \texttt{dist})$ in $(\texttt{batch}, \texttt{d}^2)$}
+      \If{$\texttt{dist} \le \theta$}
+        \If{\textsc{HeapPush}$(\mathcal{H}, \texttt{dist}, \texttt{cid})$ succeeds}
+          \State $\texttt{updates} \gets \texttt{updates} + 1$
+        \EndIf
+      \EndIf
+    \EndFor
+    \If{$\texttt{updates} = 0$}
+      \State $\texttt{consecutive\_no\_gain} \gets \texttt{consecutive\_no\_gain} + 1$
+    \Else
+      \State $\texttt{consecutive\_no\_gain} \gets 0$
+    \EndIf
+    \If{$\mathcal{H}$ is full \textbf{and} $(\texttt{bins\_processed}+1) \ge B_{\min}$ \textbf{and} $\texttt{consecutive\_no\_gain} \ge T_{\min}$}
+      \State \Return $\mathcal{H}$
+    \EndIf
+  \EndWhile
+  \State $\texttt{bins\_processed} \gets \texttt{bins\_processed} + 1$
+\EndFor
+\State \Return $\mathcal{H}$
+\end{algorithmic}
+\end{algorithm}
+
+\section{NeuRoute retrieval and build breakdown at $\sim$0.90 Recall@10}
+\label{app:neuroute_breakdown_90}
+
+This section reports NeuRoute's query-time work decomposition at operating points with Recall@10 closest to 0.90 (Table~\ref{tab:neuroute_retrieval_breakdown_90}), including bucket-enumeration time, refinement time, and the resulting candidate volume per query.
+Together with the end-to-end build-time comparison in Fig.~\ref{fig:buildtime}, these results highlight NeuRoute's intended design point: budget-controlled retrieval with a lightweight time-to-index pipeline under a single-node setup.
+
+\begin{table*}[t]
+\centering
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.05}
+\caption{NeuRoute retrieval breakdown at operating points with Recall@10 closest to 0.90 on each dataset. \texttt{enum\_ms}, \texttt{refine\_ms}, \texttt{total\_ms}, \texttt{total\_qps}, and \texttt{recall} are reported from query-level summary logs. \texttt{model\_ms}$=\texttt{total\_ms}-\texttt{enum\_ms}-\texttt{refine\_ms}$. \texttt{Cand./q} is the average number of refined candidates per query, computed as \texttt{refined\_vecs}/$Q$.}
+\label{tab:neuroute_retrieval_breakdown_90}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{l r r r r r r r r}
+\toprule
+Dataset & \texttt{enum\_ms} & \texttt{refine\_ms} & \texttt{routing\_ms} & \texttt{total\_ms} &
+\texttt{total\_qps} & Cand./q & \texttt{refined\_vecs} & \texttt{recall} \\
+\midrule
+\texttt{BigANN-1B}   & 989.62  & 2832.63  & 31.51  & 3853.76  & 2594.87 & 193{,}591 & \ensuremath{1.94\times 10^{9}} & 0.89965 \\
+\texttt{Deep1B-1B}   & 1017.18 & 13022.58 & 45.46  & 14085.22 & 709.96  & 418{,}079 & \ensuremath{4.18\times 10^{9}} & 0.90000 \\
+\texttt{BigANN-100M} & 268.98  & 1743.22  & 33.22  & 2045.42  & 4888.96 & 142{,}093 & \ensuremath{1.42\times 10^{9}} & 0.90059 \\
+\texttt{Deep1B-100M} & 294.48  & 7110.12  & 38.04  & 7442.64  & 1343.61 & 227{,}449 & \ensuremath{2.27\times 10^{9}} & 0.90006 \\
+\texttt{GLDv2}       & 34.12   & 12718.24 & 220.81 & 12973.17 & 770.82  & 27{,}041  & \ensuremath{2.70\times 10^{8}} & 0.90066 \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\vspace{-2mm}
+\end{table*}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.80\textwidth]{figures/buildtime_vertical.pdf}
+  \caption{End-to-end index build time (hours, log-scale) for IVF--PQ, IVF--Flat, DiskANN, HNSW, OPQ + IVF--PQ, and NeuRoute.}
+  \label{fig:buildtime}
+\end{figure*}
+
+\section{Bucket-local clustering workload and scaling}
+\label{app:clustering_workload_policy_scaling}
+
+\subsection{Workload summary (1B-scale setting)}
+\label{app:clustering_workload_summary}
+
+We report bucket-local clustering workload statistics for the 1B-scale setting in the encoded space ($N{=}1{,}000{,}000{,}000$ vectors; $L_{\text{dim}}{=}22$).
+The address space contains $\texttt{nlist}=2^{L_{\text{dim}}}=4{,}194{,}304$ buckets, of which $4{,}126{,}267$ are non-empty (98.38\%).
+We group buckets by size: large ($s\ge 129$): $1{,}313{,}975$ buckets; small ($33\le s\le 128$): $1{,}310{,}159$ buckets; tiny ($s\le 32$): $1{,}502{,}133$ buckets.
+We apply k-means to large and small buckets ($2{,}624{,}134$ buckets); tiny buckets are not clustered (kept as single units).
+The resulting output scale is: total clusters (capped) $=19{,}542{,}813$; built sub-clusters $\texttt{n\_sub}=19{,}610{,}850$ (about 4.75 sub-clusters per non-empty bucket on average).
+
+\subsection{Per-bucket clustering policy}
+\label{app:clustering_policy}
+
+Let $s$ denote bucket size and let $K_B(s)$ denote the number of clusters used for that bucket.
+We enforce a hard cap $K_B(s)\le 2000$ for every bucket.
+For large buckets ($s\ge 129$), we set $K_B(s) = \min\!\left(2000,\ \left\lceil s/128 \right\rceil\right)$.
+For small buckets ($33\le s \le 128$), we set $K_B(s) = \left\lceil s/32 \right\rceil$.
+For tiny buckets ($s\le 32$), no k-means is performed; the bucket is kept as a single unit.
+
+\subsection{Clustering efficiency and thread scaling}
+\label{app:clustering_thread_scaling}
+
+We report clustering throughput as printed by the program (``\texttt{approx = ... Mvec/s}'') and measure scaling by varying the outer (bucket-parallel) thread count.
+Speedup and parallel efficiency are computed relative to the 8-thread run.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+\caption{Clustering time and thread scaling for bucket-local clustering. Throughput is reported by the program as ``\texttt{approx = ... Mvec/s}''. Speedup and parallel efficiency are relative to the 8-thread run.}
+\label{tab:clustering_thread_scaling}
+\begin{tabular}{r r r r r}
+\toprule
+\multicolumn{1}{c}{Threads} &
+\multicolumn{1}{c}{Time (s)} &
+\multicolumn{1}{c}{Throughput (Mvec/s)} &
+\multicolumn{1}{c}{Speedup vs.\ 8T} &
+\multicolumn{1}{c}{Efficiency vs.\ 8T} \\
+\midrule
+8  & 638.81 & 1.565 & 1.00$\times$ & 100\% \\
+16 & 347.55 & 2.877 & 1.84$\times$ & 91.9\% \\
+24 & 253.48 & 3.945 & 2.52$\times$ & 84.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Note.}
+Sub-CSR construction after clustering is small ($\sim$5.5--6.4\,s) relative to the clustering stage and does not affect the scaling trends.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/cragra.png}
+  \caption{CAGRA GPU-only scaling reference at 50M--80M on BigANN and Deep1B. Points are labeled by dataset size (50M/60M/70M/80M).}
+  \label{fig:cagra_scaling_50_80m}
+\end{figure*}
+
+\section{GPU-only reference (CAGRA)}
+\label{app:cagra_reference}
+
+We evaluated the GPU graph baseline CAGRA as a throughput reference.
+In our setup, CAGRA is limited by GPU memory and can be constructed only up to 80M vectors on an A100 40GB, so we do not include it in the main Recall@10--QPS plots that focus on 100M/1B-scale comparisons.
+
+
+
+At the 80M scale, CAGRA achieves very high throughput while maintaining strong recall: on BigANN-80M it reaches Recall@10 $=0.938$ at $\sim 1.17\times 10^{6}$ QPS, and on Deep-80M it reaches Recall@10 $=0.918$ at $\sim 1.13\times 10^{6}$ QPS.
+These results highlight the effectiveness of GPU graph search under sufficient device memory, but its scaling is constrained in our environment.
+
+\end{document}
